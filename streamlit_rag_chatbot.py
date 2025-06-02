@@ -6,6 +6,8 @@ from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
+from fpdf import FPDF
+import base64
 
 from dotenv import load_dotenv
 import os
@@ -52,7 +54,6 @@ qa_chain = ConversationalRetrievalChain.from_llm(
     return_source_documents=True,
     output_key='answer'
 )
-
 # Streamlit UI
 st.set_page_config(page_title="Orangetheory Chatbot", page_icon="🧡")
 st.title("🧡 Orangetheory Q&A Chatbot")
@@ -75,7 +76,34 @@ if query:
             st.markdown(f"**Source {i+1}** - {doc.metadata.get('source', 'Unknown')}")
             st.write(doc.page_content[:500] + "...")
 
-    st.markdown("---")
-    st.markdown("### 💬 Chat History")
-    for speaker, message in st.session_state.chat_history:
-        st.markdown(f"**{speaker}:** {message}")
+# 💬 Styled Chat History with Avatars
+st.markdown("---")
+st.markdown("### 💬 Chat History")
+for speaker, message in st.session_state.chat_history:
+    avatar = "🧑" if speaker == "You" else "🤖"
+    bubble_color = "#F0F8FF" if speaker == "You" else "#E6FFE6"
+    st.markdown(f"""
+    <div style='background-color:{bubble_color};padding:10px;border-radius:10px;margin-bottom:10px;'>
+        <strong>{avatar} {speaker}:</strong><br>
+        <div style='margin-left:10px'>{message}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# 📥 Export chat to PDF
+if st.button("📄 Export Q&A to PDF"):
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt="Orangetheory Q&A Chat Log", ln=True, align="C")
+    pdf.ln(10)
+    for speaker, msg in st.session_state.chat_history:
+        pdf.multi_cell(0, 10, f"{speaker}: {msg}\n")
+
+    pdf_output_path = "chat_log.pdf"
+    pdf.output(pdf_output_path)
+
+    with open(pdf_output_path, "rb") as f:
+        base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+        href = f'<a href="data:application/pdf;base64,{base64_pdf}" download="chat_log.pdf">📥 Click here to download PDF</a>'
+        st.markdown(href, unsafe_allow_html=True)
